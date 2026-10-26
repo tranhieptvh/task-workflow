@@ -69,7 +69,7 @@ status: todo
 
 Rules:
 - One item = one atomic change (one function or one block in one file)
-- Paths are full from the workspace root
+- Paths are full from the workspace root (no `./` prefix when the repo is `.`)
 - Several places in one file → separate items (implement groups same-file items into one agent)
 - Only set Deps when an item truly needs another first (e.g. uses a function the other creates)
 
