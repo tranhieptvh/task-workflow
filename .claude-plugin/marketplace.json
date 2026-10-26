@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "task-workflow",
+  "description": "Spec-driven task workflow for Claude Code.",
+  "owner": {
+    "name": "hieptv"
+  },
+  "plugins": [
+    {
+      "name": "task",
+      "description": "requirements → spec → plan → implement → review → report, configured per project via .claude/task-workflow.yml",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

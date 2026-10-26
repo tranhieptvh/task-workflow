@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "task",
+  "version": "0.1.0",
+  "description": "Spec-driven task workflow: requirements → spec → plan → implement → review → report",
+  "author": {
+    "name": "hieptv",
+    "email": "tranhieptvh@gmail.com"
+  },
+  "skills": [
+    "./skills/"
+  ]
+}
