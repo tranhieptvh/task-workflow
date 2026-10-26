@@ -33,13 +33,13 @@ tasks/
 
 **Your own machines (editable, changes apply immediately):**
 ```sh
-git clone <this-repo-url> ~/.claude/skills/task
+git clone git@github.com:tranhieptvh/task-workflow.git ~/.claude/skills/task
 ```
 It loads as `task@skills-dir` on the next session (or run `/reload-plugins`).
 
 **Other people:**
 ```sh
-claude plugin marketplace add <github-owner>/<repo>
+claude plugin marketplace add tranhieptvh/task-workflow
 claude plugin install task@task-workflow
 ```
 Update later with `claude plugin marketplace update task-workflow`.
