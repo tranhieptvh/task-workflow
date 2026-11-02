@@ -1,0 +1,120 @@
+{
+  "_comment": "Default policy of the task security gate. Projects may only ADD restrictions via <workspace>/.claude/task-security.json.",
+
+  "secret_paths": [
+    "**/.env*",
+    "**/*.pem",
+    "**/*.key",
+    "**/*.p12",
+    "**/*.pfx",
+    "**/id_rsa*",
+    "**/id_ed25519*",
+    "**/id_ecdsa*",
+    "**/credentials",
+    "**/credentials.json",
+    "**/*.credentials",
+    "**/.npmrc",
+    "**/.netrc",
+    "**/.pgpass",
+    "**/.git-credentials",
+    "~/.aws/*",
+    "~/.ssh/*",
+    "~/.config/gh/hosts.yml",
+    "~/.docker/config.json",
+    "~/.kube/config",
+    "~/.claude.json",
+    "~/.claude/.credentials.json",
+    "**/.sealed/*"
+  ],
+
+  "secret_path_exceptions": [
+    "*.example",
+    "*.sample",
+    "*.template",
+    "*.dist",
+    "*.pub"
+  ],
+
+  "protected_paths": [
+    "{plugin}/security/*",
+    "{plugin}/hooks/*",
+    "~/.claude/settings.json",
+    "~/.claude/settings.local.json",
+    "**/.claude/settings.json",
+    "**/.claude/settings.local.json"
+  ],
+
+  "secret_patterns": [
+    {"id": "aws-access-key-id",   "regex": "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b"},
+    {"id": "aws-secret-json",     "regex": "\"(?:SecretAccessKey|SessionToken|secretAccessKey|sessionToken)\"\\s*:\\s*\"[^\"]{16,}\""},
+    {"id": "aws-secret-assign",   "regex": "(?i)aws_?(?:secret_?access_?key|session_?token)\\s*[=:]\\s*['\"]?[A-Za-z0-9/+=]{30,}"},
+    {"id": "private-key",         "regex": "-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----"},
+    {"id": "jwt",                 "regex": "\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}"},
+    {"id": "appsync-api-key",     "regex": "\\bda2-[a-z0-9]{26}\\b"},
+    {"id": "github-token",        "regex": "\\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\\b|\\bgithub_pat_[A-Za-z0-9_]{50,}"},
+    {"id": "slack-token",         "regex": "\\bxox[abposr]-[A-Za-z0-9-]{10,}"},
+    {"id": "google-api-key",      "regex": "\\bAIza[0-9A-Za-z_-]{35}\\b"},
+    {"id": "stripe-live-key",     "regex": "\\b(?:sk|rk)_live_[0-9a-zA-Z]{20,}"},
+    {"id": "llm-api-key",         "regex": "\\bsk-(?:ant|proj)-[A-Za-z0-9_-]{20,}"},
+    {"id": "auth-header",         "regex": "(?i)authorization[\"']?\\s*[:=]\\s*[\"']?(?:bearer|basic)\\s+[A-Za-z0-9._~+/=-]{16,}"},
+    {"id": "connection-string",   "regex": "(?i)\\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\\+srv)?|redis|amqps?)://[^\\s:@/]+:[^\\s@/]+@"},
+    {"id": "secret-literal",      "regex": "(?i)[\\w.-]*(?:password|passwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|client[_-]?secret)[\"']?\\s*[:=]\\s*[\"'][^\"'\\s$<>{}]{8,}[\"']"},
+    {"id": "dotenv-secret",       "regex": "(?m)^\\s*(?:export\\s+)?[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|API_KEY|APIKEY|ACCESS_KEY|PRIVATE_KEY)[A-Z0-9_]*=[^\\s'\"$<{#\\[(][^\\s]{7,}"}
+  ],
+
+  "always_deny": [
+    {"id": "print-env",            "regex": "(?:^|[;&|(`]|\\$\\()\\s*(?:env|printenv|export\\s+-p|export|declare\\s+-[px]+|set)\\s*(?:$|[;&|)`])", "reason": "prints environment variables (may contain secrets)"},
+    {"id": "printenv-var",         "regex": "\\bprintenv\\s+\\S", "reason": "prints environment variables (may contain secrets)"},
+    {"id": "aws-configure-secret", "regex": "\\baws\\s+configure\\s+(?:get\\s+\\S*(?:secret|session_token)|export-credentials)", "reason": "prints AWS credentials"},
+    {"id": "aws-secret-value",     "regex": "\\baws\\s+secretsmanager\\s+get-secret-value\\b", "reason": "returns a secret value"},
+    {"id": "aws-ssm-decrypt",      "regex": "\\baws\\s+ssm\\s+get-parameters?(?:-by-path)?\\b.*--with-decryption", "reason": "returns decrypted parameter values"},
+    {"id": "aws-lambda-get-function", "regex": "\\baws\\s+lambda\\s+get-function(?:\\s|$)", "reason": "returns a pre-signed code URL and the full configuration including environment values"},
+    {"id": "aws-temp-credentials", "regex": "\\baws\\s+sts\\s+(?:get-session-token|assume-role\\S*|get-federation-token)\\b", "reason": "returns temporary credentials"},
+    {"id": "aws-login-token",      "regex": "\\baws\\s+(?:ecr\\s+get-login-password|ecr-public\\s+get-login-password|codeartifact\\s+get-authorization-token|rds\\s+generate-db-auth-token)\\b", "reason": "returns an auth token"},
+    {"id": "aws-cognito-auth",     "regex": "\\baws\\s+cognito-idp\\s+(?:initiate-auth|admin-initiate-auth|respond-to-auth-challenge)\\b", "reason": "returns user tokens"},
+    {"id": "aws-apigw-key-values", "regex": "\\baws\\s+apigateway\\s+get-api-keys?\\b.*--include-values?", "reason": "returns API key values"},
+    {"id": "gh-auth-token",        "regex": "\\bgh\\s+auth\\s+token\\b", "reason": "prints a GitHub token"},
+    {"id": "gate-bypass",          "regex": "TASK_SECURITY_GATE", "reason": "only the user may toggle the security gate"}
+  ],
+
+  "safe_form": [
+    {"id": "aws-lambda-config", "regex": "\\baws\\s+lambda\\s+get-function-configuration\\b",
+     "hint": "Only environment variable NAMES are allowed: --query '{Runtime:Runtime,Handler:Handler,Timeout:Timeout,MemorySize:MemorySize,EnvKeys:keys(Environment.Variables)}'"},
+    {"id": "aws-appsync-keys",  "regex": "\\baws\\s+appsync\\s+list-api-keys\\b",
+     "hint": "The 'id' field IS the API key. Use --query 'apiKeys[].{expires:expires,description:description}'"},
+    {"id": "aws-ssm-param",     "regex": "\\baws\\s+ssm\\s+get-parameters?(?:-by-path)?\\b",
+     "hint": "Values are not allowed. Use 'aws ssm describe-parameters' or --query that excludes Value, e.g. --query 'Parameter.{Name:Name,Type:Type,Version:Version,LastModifiedDate:LastModifiedDate}'"},
+    {"id": "scan-required",     "regex": "\\bgit\\s+(?:show|diff|stash\\s+show)\\b|\\bgit\\s+log\\b.*(?:\\s-p\\b|\\s-u\\b|--patch)|\\baws\\s+logs\\s+(?:filter-log-events|get-log-events|get-query-results|tail)\\b",
+     "hint": "Output may contain secrets. Run it through the scanner: python3 {gate} scan-run -- '<command>'"}
+  ],
+
+  "readonly": {
+    "deny": [
+      "\\baws\\s+\\S+\\s+(?:create|update|put|delete|remove|start|stop|reboot|terminate|run|invoke|publish|send|tag|untag|attach|detach|associate|disassociate|modify|reset|restore|enable|disable|import|register|deregister|cancel|execute|set|add|replace|rotate|purge|batch-write|batch-delete|admin-(?!get|list))[a-z-]*\\b",
+      "\\baws\\s+s3\\s+(?:mv|rm|sync|mb|rb)\\b",
+      "\\bgit\\s+(?:commit|push|checkout|switch|reset|merge|rebase|cherry-pick|revert|tag|stash(?!\\s+(?:list|show))|clean|restore|am|apply|branch\\s+-[dDmM]|pull|fetch)\\b",
+      "\\b(?:rm|mv|rmdir|chmod|chown|ln|truncate|dd|tee|xargs)\\s",
+      "\\bfind\\b.*\\s-(?:delete|exec|execdir|ok)\\b",
+      "\\bsed\\s+(?:-[a-zA-Z]*i|--in-place)",
+      "\\b(?:npm|yarn|pnpm)\\s+(?:install|i|add|remove|publish|run|exec|ci)\\b",
+      "\\bamplify\\s+(?:push|publish|add|remove|update|env\\s+(?:add|remove|import)|delete)\\b",
+      "\\b(?:terraform|cdk|sam|serverless|sls)\\s+(?:apply|deploy|destroy|import)\\b"
+    ],
+    "confirm": [
+      "\\baws\\s+dynamodb\\s+(?:scan|query|get-item|batch-get-item|execute-statement)\\b",
+      "\\baws\\s+cognito-idp\\s+(?:list-users|admin-get-user|list-users-in-group)\\b",
+      "\\baws\\s+s3\\s+cp\\b",
+      "\\baws\\s+s3api\\s+get-object\\b",
+      "\\b(?:curl|wget|http|https)\\s",
+      "\\b(?:psql|mysql|mongo|mongosh|redis-cli|sqlite3)\\b",
+      "\\b(?:ssh|scp|sftp|rsync)\\s",
+      "\\b(?:python3?|node|ruby|perl|bash|sh|zsh)\\s"
+    ],
+    "allow": [
+      "^(?:ls|cat|head|tail|wc|grep|rg|find|sort|uniq|cut|tr|diff|echo|printf|pwd|cd|test|\\[|true|false|date|which|file|stat|du|df|tree|jq|awk|sed|basename|dirname|realpath|column)\\b",
+      "^aws\\s+\\S+\\s+(?:list|describe|get|lookup|search|simulate|filter|batch-get|test-dns|validate)[a-z-]*\\b",
+      "^aws\\s+s3\\s+ls\\b",
+      "^git\\s+(?:log|status|blame|rev-parse|ls-files|ls-tree|describe|shortlog|cat-file\\s+-t|config\\s+--get|remote\\s+-v|branch\\s+(?:--show-current|-a|-r|-v|--list)\\s*$)"
+    ]
+  }
+}

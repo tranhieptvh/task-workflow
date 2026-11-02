@@ -1,65 +1,62 @@
 ---
 name: implement
-description: Implement items from 3_plan.md of the active task. Use --all for every todo item, or list item IDs (e.g. C1 C2).
-argument-hint: [--all | C1 C2 ...]
+description: Carry out the items of 3_plan.md for the active task — edit code ([Cx]) and run verify commands, or run read-only investigation checks ([Qx]) and record evidence. Use --all for every todo item, or list item IDs.
+argument-hint: "[--all | C1 C2 ... | Q1 Q2 ...]"
 ---
 
-## Step 0 — Load config and task
-Read `.claude/task-workflow.yml` if it exists. Defaults for missing keys:
-`language` = language of the user's request · `tasks_dir` = `tasks` · `repos.default` = `.` · `knowledge` = `[CLAUDE.md]` if that file exists, else `[]` · `checklists` = `[]`
+Read `../../reference/common.md` (relative to this skill's base directory) and run Step 0 completely.
 
-Read `<tasks_dir>/.current` → `$TASK`. Missing → stop: "No active task. Run `/task:new <id>` first."
-Read `<tasks_dir>/$TASK/.repo` → `$REPO` (missing → `repos.default`). Let `$T` = `<tasks_dir>/$TASK`.
+## 1. Validate and select
+- `$T/3_plan.md` missing or a placeholder → stop: "Run `/task:plan` first."
+- Parse items (`## [Cx]` / `## [Qx]`): Status, File, Deps, Verify, Commands, Security.
+- `--all` → every `[ ] todo` item. IDs → only those (already done → "Cx already done, skipped"; unknown → error).
+- An item whose Deps are not done and not in this run → skip: "C3 waits for C2".
+- Nothing left → say so and suggest `/task:review`.
 
-A file is a **placeholder** if it contains `<!-- task:placeholder` (legacy: `> Chưa có`).
-Write all messages in `language`.
+## 2a. Code task ([Cx])
+**Group by file** — one general-purpose agent per file, items in ID order, so no two agents edit the same file. Groups without outside Deps run in parallel (background); a group depending on another starts after that group's items report `done` (if one reports `error`, do not start it).
 
-## Step 1 — Validate
-`$T/3_plan.md` missing or a placeholder → stop: "Run `/task:plan` first."
-
-## Step 2 — Select items
-Parse `$T/3_plan.md`: for each `## [Cx]` take Status, File (path before `:line`), Deps.
-
-- `--all` → every item with `[ ] todo`; `[x] done` items are skipped (idempotent)
-- List of IDs → only those; already done → "Cx already done, skipped."; unknown ID → clear error
-- An item whose Deps point to an item that is not done **and** not in this run → drop it: "C3 waits for C2 (not done)."
-
-Nothing left → say so and suggest `/task:review`.
-
-## Step 3 — Group by file and spawn agents
-**Group:** items with the same file → one group, ordered by ID. One **agent per group**, so no two agents edit the same file.
-
-**Checklists for a group:** every `checklists` entry whose `match` glob (relative to `$REPO`) matches the file. `file#section` means only that heading section of the file.
-
-**Order:**
-- Groups with no Deps outside the group (or whose Deps are already done) → spawn in parallel (background)
-- Groups depending on another group → spawn after that group finishes and the depended-on items report `done`; if one reports `error`, do not spawn and list it under Error
-
-general-purpose agent prompt:
+Agent prompt:
 ```
 Task: $TASK · Repo: $REPO · File: <file> · Items (in order): <ids>
-
-First read the knowledge files: <knowledge>
-
-For each item, in order:
-1. Read the `## [<item>]` section of `$T/3_plan.md`: Description and Change (before/after)
-2. Read the target file (offset/limit, not the whole file if large). Re-read before each item: earlier edits shift line numbers.
-3. Apply the change with Edit. Only edit <file>.
-4. Check the edited code against these checklists: <checklist files, or "none">
-
-Do NOT edit `$T/3_plan.md` — the main session updates statuses.
-
-Return one line per item: <item ID> | done/error | note (reason if error).
+<security paragraph from common.md>
+Read the knowledge files first: <knowledge>
+For each item in order:
+1. Read the `## [<item>]` section of `$T/3_plan.md` (Description, Change).
+2. Read the target file (offset/limit). Re-read before each item: earlier edits shift lines.
+3. Apply the change with Edit. Only edit <file> (plus a new file the item explicitly creates).
+4. Check the edited code against these checklists: <checklist files whose match fits the file, or "none">.
+Do NOT edit `$T/3_plan.md` and do NOT run shell commands.
+Return one line per item: <id> | done/error | note.
 ```
 
-**Status update (main session, after each agent returns):** for each item reported `done`, Edit `$T/3_plan.md` with an `old_string` spanning the `## [Cx] ...` heading line through its `- **Status:** [ ] todo` line (unique match) → `- **Status:** [x] done`. Only the main session writes this file.
+**After each group (main session):**
+1. For every item reported `done`: Edit `$T/3_plan.md`, old_string spanning the `## [Cx] …` heading through its `- **Status:** [ ] todo` line (unique) → `- **Status:** [x] done`. Only the main session writes this file.
+2. Verify, through the gate scanner, from the repo directory:
+   - each done item's `Verify:` command
+   - each `verify` entry of the config with `when` containing `implement` (skip entries whose `repo` is not `$REPO`), `{changed_files}` = files of this group
+   `cd $REPO && $GATE scan-run --save $T/evidence/verify-<name-or-item>.log -- '<command>'` (timeout from config, default 300 s).
+   Add under the item `- **Verify result:** pass | fail — <first failing line or summary>`. A failure does not undo `done` and is not retried automatically: report it.
 
-## Step 4 — Summary
+## 2b. Investigation task ([Qx]) — read-only
+1. Create `$T/.readonly` (empty). While it exists the gate blocks write/deploy commands and file writes outside `$T`, and asks the user before commands marked `confirm`.
+2. Show the user the `confirm` commands of the selected items (env/profile and reason) before starting.
+3. Run the items in dependency order **in the main session** (sub-agents do not run commands). For each command:
+   `$GATE scan-run --save $T/evidence/<Qx>-<n>.txt -- '<command>'`
+   - Refused by the gate → do not work around it; record "refused: <rule>" and continue.
+   - "Output withheld" → record "value exists, withheld (secret-like data)".
+4. Compare the evidence with `Expect if true` / `Expect if false` and add under the item:
+   `- **Result:** confirmed | rejected | inconclusive — <one sentence> (evidence: evidence/<Qx>-<n>.txt)`
+   then mark the item `[x] done` (same Edit rule as 2a).
+5. **Always delete the marker at the end** with `rm -f <tasks_dir>/$TASK/.readonly` run from the workspace root (no `cd`), also when stopping on an error. If you cannot, tell the user to delete it.
+
+Non-interactive runs: commands classified `confirm` cannot be confirmed and are refused — record them as "not run: needs confirmation" and continue with the others.
+
+## 3. Summary
 ```
-✅ Done: C1, C2 (path/file), C3 (path/file2)
+✅ Done: C1, C2 (path/file) … | Q1 confirmed, Q2 rejected …
+⚠️ Verify failed: C3 (lint: 2 errors) …
 ⏭️ Skipped: C4 (already done) | C5 (waits for C4)
-❌ Error: (if any, with details)
-
-👉 Still todo: C5, C6 — run /task:implement C5 C6
-   Or all done → run /task:review
+⛔ Refused by the security gate: … (if any)
+👉 Still todo: … — /task:implement <ids>   or all done → /task:review
 ```

@@ -1,96 +1,79 @@
 ---
 name: review
-description: Review the implemented items of the active task against 2_spec.md and the project's checklists, write 4_review.md, and reopen blocker items. Run after /task:implement, before /task:report.
+description: Review the active task — code tasks against the spec, checklists, verify commands, e2e and a secret scan of the diff; investigation tasks on whether every conclusion is backed by evidence. Writes 4_review.md and reopens blocker items.
+argument-hint: "[--force]"
 ---
 
-## Step 0 — Load config and task
-Read `.claude/task-workflow.yml` if it exists. Defaults for missing keys:
-`language` = language of the user's request · `tasks_dir` = `tasks` · `repos.default` = `.` · `knowledge` = `[CLAUDE.md]` if that file exists, else `[]` · `checklists` = `[]` · `review_lanes` = `[{name: Code, match: "**"}]`
+Read `../../reference/common.md` (relative to this skill's base directory) and run Step 0 completely.
 
-Read `<tasks_dir>/.current` → `$TASK`. Missing → stop: "No active task. Run `/task:new <id>` first."
-Read `<tasks_dir>/$TASK/.repo` → `$REPO` (missing → `repos.default`). Let `$T` = `<tasks_dir>/$TASK`.
-
-A file is a **placeholder** if it contains `<!-- task:placeholder` (legacy: `> Chưa có`).
-Write all messages and generated files in `language`.
-
-## Step 1 — Validate
+## 1. Validate
 - `$T/3_plan.md` missing or a placeholder → stop: "Run `/task:plan` first."
 - No `[x] done` item → stop: "Nothing implemented yet. Run `/task:implement` first."
+- `4_review.md` is regenerated on every run (no overwrite question).
 
-## Step 2 — Assign files to lanes
-From the `[x] done` items take ID and File. Assign each file to the **first** lane in `review_lanes` whose `match` (relative to `$REPO`) matches it; files matching no lane go to a lane named `Other`.
-For each file also collect its checklists: every `checklists` entry whose `match` matches (`file#section` = only that heading section).
+## 2a. Code task
+Run these checks; each produces findings for 4_review.md.
 
-## Step 3 — One Explore agent per non-empty lane (parallel, background)
-Explore cannot write files: each agent returns its review as its final message, and the main session writes it verbatim to `$T/.review-<lane>.md`.
-Prompt:
+1. **Secret scan of the changes (G4).** For every repo touched by the plan: `$GATE scan-diff <repo>`.
+   - `secret …` lines → blocker on the item owning that file ("secret-like value added in <file>:<line>"; never quote it).
+   - `warn secret-file-untracked …` → warning only (a secret file exists but is not ignored by git; the user should add it to `.gitignore`). Not a blocker of the task.
+   Also `$GATE scan tasks/<id>/evidence` (sealed files are skipped).
+2. **Verify.** In the main session, every config `verify` entry with `when` containing `review` (skip entries whose `repo` is not `$REPO`) plus every item's `Verify:` command, through `cd $REPO && $GATE scan-run --save $T/evidence/verify-<name>.log -- '<command>'` (`{changed_files}` = all files of done items, `{task_id}` = $TASK). Failure → blocker on the related item (or a general blocker).
+   No `verify` configured and no item Verify → note "no verify configured — run /task:init" (not a blocker).
+3. **E2E (A2)** — only if `integrations.e2e` is configured and `mcp__playwright-<env>__*` tools exist:
+   - User starts the app. Check `base_url` answers (`curl -s -o /dev/null -w '%{http_code}' <base_url>`); not reachable → note and skip.
+   - Follow the scenario of `1_requirements.md` (reproduction steps or acceptance criteria) with the Playwright tools. Never type passwords. If the app shows a login page in `storage-state` mode: stop e2e and tell the user to refresh the session with the env's `setup` command. In `explicit` mode logging in writes data: ask the user first and require the env's `write_guard`.
+   - Do not screenshot pages listed in `no_screenshot`. Save screenshots/notes to `$T/evidence/e2e/`.
+   - A failed scenario → blocker on the related item.
+4. **Logic & checklists (lanes).** Assign done-item files to `review_lanes` (first match wins; others → lane `Other`) with their checklists (`file#section` = only that heading).
+   - **3 files or fewer in total → review inline** in the main session (B2).
+   - Otherwise one Explore agent per non-empty lane (parallel, background), returning the review as its final message:
+   ```
+   Review lane <name>, in <language>. Return the review as your final message (no file writes).
+   <security paragraph from common.md>
+   Read the knowledge files: <knowledge>; the "Proposed solution" of $T/2_spec.md.
+   Files and items: <file → item IDs, line, checklists>
+   For each item: read the changed code; Logic (matches the spec? cases missed?); Scope (changes outside the plan?);
+   Checklist (cite rule ID + line for each violation).
+   Format: ### [Cx] name — `path:line` / - Logic / - Scope / - Checklist / - Fix
+   ```
+
+## 2b. Investigation task
+Review inline (or one general-purpose agent when there are more than 8 items) — evidence first:
+- Every done `[Qx]` has a `Result` and its evidence file exists in `$T/evidence/` (a sealed result counts as evidence of existence only).
+- Every hypothesis of the spec is confirmed, rejected or explicitly inconclusive; every spec question has an answer or is marked open.
+- Conclusions follow from the evidence: flag claims without evidence, results that contradict each other, and places where a result is an inference.
+- Commands refused by the gate: is the conclusion still valid without them?
+- `$GATE scan $T/evidence` → any match outside `.sealed` is a blocker ("evidence contains secret-like data").
+Missing evidence or an unsupported conclusion → blocker on that item.
+
+## 3. Write `$T/4_review.md` (in <language>, headings translated, keep `[Cx]`/`[Qx]`)
 ```
-Review lane: <lane name>. Return the review as your final message (no file writes), in <language>.
-
-Read the knowledge files: <knowledge>
-Read the "Proposed solution" section of `$T/2_spec.md`.
-
-Files and items: <file → item IDs, line from plan, checklists>
-
-For each item:
-1. Read the changed code (offset/limit around the plan's line)
-2. Logic — does it do what the spec asks? Any case missed?
-3. Scope — any change outside the files/functions in the plan? Unwanted side effects?
-4. Checklists — check against each listed checklist; cite the rule ID and line for any violation
-
-Format:
-## <lane name> review
-### [Cx] item name — `path:line`
-- **Logic:** ✅ matches spec / ❌ wrong — what exactly
-- **Scope:** ✅ / ❌ — what
-- **Checklist:** ✅ / ❌ — rule ID + line (omit if no checklist)
-- **Fix:** (empty if pass)
-```
-
-## Step 4 — general-purpose agent (foreground, after all lanes finish)
-Prompt:
-```
-Read `$T/3_plan.md` ([x] done items), `$T/2_spec.md`, and every `$T/.review-*.md`.
-
-Write `$T/4_review.md` (overwrite, in <language>, headings translated; keep `[Cx]` IDs):
-
 ---
 task: $TASK
+type: $TYPE
 reviewed: <today, ISO date>
 ---
-
 ## Summary
 - ✅ X passed | ⚠️ Y warnings | ❌ Z blockers
-
+- Verify: <pass/fail per command or "not configured"> · Secret scan: clean | N findings · E2E: <result or "not configured">
 ## Items
-### [Cx] item name
+### [Cx] name
 - **Status:** ✅ pass / ⚠️ warning / ❌ blocker
 - **File:** `path`
 - **Finding:** (empty if pass)
 - **Fix:** (empty if pass)
-
 ## Blockers — re-implement
-(only if any blocker)
-- **Cx** — short problem → run `/task:implement Cx`
-
-Rules:
-- No problems → summary is just "✅ All X items passed."
-- ⚠️ warning = minor, does not affect correctness (style, naming, could be better)
-- ❌ blocker = logic wrong vs spec, checklist violation, or change outside scope
-
-Then delete every `$T/.review-*.md`.
+- **Cx** — short problem → `/task:implement Cx`
 ```
+⚠️ warning = minor, does not affect correctness. ❌ blocker = wrong vs spec, checklist violation, out of scope, verify/e2e failure, secret found, unsupported conclusion.
 
-## Step 5 — Reopen blockers
-Blocker items are still `[x] done`, so `/task:implement Cx` would skip them. For each blocker, Edit `$T/3_plan.md` (old_string spanning the `## [Cx]` heading through its Status line) → `- **Status:** [ ] todo`.
+## 4. Reopen blockers
+For each blocker item, Edit `$T/3_plan.md` (old_string from the `## [Cx]` heading through its Status line) → `- **Status:** [ ] todo`.
 
-## Step 6 — Report
+## 5. Report
 ```
-✅ Review done — X passed, Y warnings, Z blockers
-$T/4_review.md
-
-(blockers) ❌ Fix before continuing:
-  /task:implement C2 C4
-
-(no blockers) 👉 Run /task:report
+✅ Review done — X passed, Y warnings, Z blockers   ($T/4_review.md)
+(blockers) ❌ Fix first: /task:implement C2 C4
+(none)     👉 /task:report
 ```

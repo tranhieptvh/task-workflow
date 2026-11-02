@@ -1,65 +1,72 @@
 ---
 name: spec
-description: Analyse 1_requirements.md and the codebase of the active task, then write 2_spec.md (context, problem, proposed solution, scope, risks).
+description: Analyse 1_requirements.md and the codebase of the active task and write 2_spec.md — problem and solution for a code task, questions and hypotheses for an investigation task.
+argument-hint: "[--force]"
 ---
 
-## Step 0 — Load config and task
-Read `.claude/task-workflow.yml` if it exists. Defaults for missing keys:
-`language` = language of the user's request · `tasks_dir` = `tasks` · `repos.default` = `.` · `knowledge` = `[CLAUDE.md]` if that file exists, else `[]` · `search_paths` = whole repo
+Read `../../reference/common.md` (relative to this skill's base directory) and run Step 0 completely.
 
-Read `<tasks_dir>/.current` → `$TASK`. Missing → stop: "No active task. Run `/task:new <id>` first."
-Read `<tasks_dir>/$TASK/.repo` → `$REPO` (missing → `repos.default`). Let `$T` = `<tasks_dir>/$TASK`.
+## 1. Validate
+- `$T/1_requirements.md` missing or a placeholder → stop: "Fill in `1_requirements.md` first (or create the task from a ticket)."
+- `$T/2_spec.md` is not a placeholder → overwrite rule of common.md (`--force`).
 
-A file is a **placeholder** if it contains `<!-- task:placeholder` (legacy: `> Chưa có` or `<!-- Dán nội dung`).
-Write all messages and generated files in `language`.
-
-## Step 1 — Validate
-- `$T/1_requirements.md` missing → stop: "Missing `$T/1_requirements.md`."
-- `$T/1_requirements.md` is a placeholder → stop: "Fill in `1_requirements.md` first."
-- `$T/2_spec.md` exists and is not a placeholder → ask: "`2_spec.md` already has content. Overwrite? (y/n)". Stop unless confirmed.
-
-## Step 2 — Explore sub-agent (foreground)
-Explore cannot write files: it returns the findings as its final message, and the main session writes them verbatim to `$T/.scout.md`.
-Prompt (substitute the values):
+## 2. Explore sub-agent (foreground)
+Explore cannot write files; the main session writes its final message verbatim to `$T/.scout.md`.
 ```
-Return your findings as your final message (no file writes).
+Return your findings as your final message (no file writes), in <language>.
+
+<security paragraph from common.md>
 
 1. Read the knowledge files: <knowledge>
-2. Read `$T/1_requirements.md` in full, and every file in `$T/assets/` if any
-3. Extract keywords from the requirement: feature, function, page, error type
-4. Grep + Glob for related files under `$REPO/<each search_path>`
-5. For each related file read only the relevant part (offset/limit); never read large files in full
-6. If it is a bug, identify the root cause
+2. Read `$T/1_requirements.md` and every text file in `$T/assets/`
+3. Extract keywords (feature, function, page, error, resource, environment)
+4. Grep/Glob under `$REPO/<each search_path>`; read only the relevant parts (offset/limit)
+5. <code> Identify the cause chain if it is a bug.
+   <investigate> List what is already known from code, what must be checked in which data source (code, logs, database, cloud resources) and in which environment/profile.
+6. <if integrations.docs.context7 is true and context7 tools exist> Look up the APIs of the libraries involved, for the versions in the repo's package manifest.
 
-Sections (write in <language>, headings translated):
-## Requirement summary   (3-5 sentences)
+Sections (headings translated):
+## Requirement summary   (3–5 sentences)
 ## Related files         (- `path` — role)
-## Current behaviour     (current logic; cause chain if bug)
-## Technical constraints (project patterns from the knowledge files that must be kept)
+## Current behaviour     (code: current logic / cause chain; investigate: known facts)
+## Open points           (investigate: what needs data from outside the code, with source and environment)
+## Technical constraints (project patterns from the knowledge files)
 ```
 
-## Step 3 — general-purpose sub-agent (foreground, after Explore)
-Prompt:
+## 3. Writer (general-purpose, foreground)
 ```
-Read `$T/1_requirements.md` and `$T/.scout.md`, then write `$T/2_spec.md` in <language> (translate the section headings too):
+<security paragraph from common.md>
+Read `$T/1_requirements.md` and `$T/.scout.md`. Write `$T/2_spec.md` in <language> (headings translated):
 
 ---
 task: $TASK
 repo: $REPO
+type: $TYPE
 status: draft
 ---
-
-## Context        — what the task is and where it came from
-## Problem        — current behaviour in code and why it is wrong / missing
-## Proposed solution — concrete approach that fits the project architecture
-## Scope          — files/functions changed; features affected indirectly
-## Risks          — what to watch out for when implementing
-
+```
+For `code`:
+```
+## Context            — what the task is, where it came from
+## Problem            — current behaviour and why it is wrong/missing
+## Proposed solution  — concrete approach that fits the architecture
+## Scope              — files/functions changed; features affected indirectly
+## Risks              — what to watch when implementing
+```
+For `investigate`:
+```
+## Context            — what triggered the investigation
+## Questions          — numbered questions this task must answer (Q-level, not commands)
+## Hypotheses         — H1..Hn: each with what would confirm it and what would reject it
+## Data sources       — code paths, logs, tables, cloud resources; environment + AWS profile for each
+## Conclusion criteria — when the answer is considered established; what remains "inconclusive"
+## Constraints        — read-only; environments/profiles allowed; data that must not be exported
+## Risks              — e.g. production load, personal data in results
+```
 Then delete `$T/.scout.md`.
-```
 
-## Step 4 — Report
+## 4. Report
 ```
-✅ $T/2_spec.md created.
+✅ $T/2_spec.md created (<type>).
 👉 Review the spec, then run /task:plan
 ```
