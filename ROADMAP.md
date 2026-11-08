@@ -504,6 +504,21 @@ hooks/hooks.json         ← đăng ký gate, chạy mọi lúc
 
 ---
 
+## E — Chất lượng output
+
+### E1. Review plan trước khi implement — `xong` (2026-11-08)
+- **Vấn đề:** user thường phải yêu cầu double check output. Ở NODE-992, 5/9 item không pass ở `/task:review` có lỗi nằm sẵn trong plan (pathspec glob không khớp, thiếu region us-east-1, không lấy tên layer, câu hỏi spec không có item, chưa định cách lấy mẫu log), đọc là thấy, chưa cần chạy lệnh.
+- **Giải pháp:** bước 5 của `/task:plan`: một agent general-purpose chạy `opus`, chỉ đọc requirements, spec, plan và code (không nhận tóm tắt của writer) → kiểm coverage, lệnh có trả đúng dữ liệu không, Expect có phân biệt được giả thuyết không; với code: before-code, caller, checklist, Verify. Ghi `## Plan review` (bullet, không dùng heading `## [`) cuối `3_plan.md`; main session sửa blocker đúng 1 vòng, phần còn lại báo user. `--no-review` để bỏ qua.
+- **Không bắt được:** lỗi chỉ lộ ra lúc chạy (vd quote bị mất trong script) và lỗi diễn giải kết quả → vẫn cần `/task:review`.
+- **Test trên plan 992 (đã bỏ Result):** bắt được Q7, Q3 (us-east-1 + giả thuyết không tách được), Q10, Q2, Q5 và thiếu bảng tổng hợp env. Lọt: bug glob của `git ls-tree` ở Q6 và cách lấy mẫu log ở Q4. ~108k token, 3,5 phút.
+
+### E2. Chạy thử lệnh trước khi implement (smoke) — `xong` (2026-11-08)
+- **Vấn đề:** lỗi lệnh chỉ lộ ra khi chạy (pathspec không khớp, quote, query chạy không xong) thì E1 không bắt được.
+- **Giải pháp:** bước 6 của `/task:plan`, chỉ cho task điều tra, sau plan review: main session chạy một lần mỗi lệnh `allow` (thay placeholder bằng 1 giá trị cụ thể) qua `scan-run`, timeout 90 s, ghi `- **Smoke:**` vào item. `empty` / lỗi cú pháp / `timeout` = blocker, sửa 1 vòng; AccessDenied không phải lỗi plan (ghi 未確認). Xoá `.smoke/` khi xong.
+- **Phạm vi lệnh:** mặc định chỉ `allow`. `git ls-tree` / `git grep` trên ref là `confirm` → muốn bắt lỗi kiểu Q6 phải dùng `--smoke-all` (gate hỏi từng lệnh). `--no-smoke` để bỏ qua. Task code không chạy smoke (Verify phụ thuộc code chưa sửa).
+
+---
+
 ## Thứ tự implement
 
 | Đợt | Mục | Lý do |

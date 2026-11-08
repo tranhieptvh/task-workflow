@@ -11,6 +11,8 @@ Code tasks and investigation tasks, from ticket to deliverable, with a **securit
    ▼
 /task:plan        code: [Cx] before/after + Verify   investigate: [Qx] commands + expected results
    ▼              every command classified by the gate (allow / confirm / deny)
+   ▼              plan review: independent Opus agent checks coverage and commands; blockers fixed once (--no-review skips)
+   ▼              smoke run (investigate): allow-class commands run once, 90 s cap; empty/error/timeout fixed once (--smoke-all, --no-smoke)
 /task:implement   code: one agent per file, verify   investigate: read-only checks → evidence/
    ▼
 /task:review      code: logic, checklists, verify, e2e, secret scan of the diff

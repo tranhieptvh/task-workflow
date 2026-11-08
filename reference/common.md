@@ -25,7 +25,7 @@
 3. **Active task** (all skills except `new` and `init`): read `<tasks_dir>/.current` → `$TASK`; missing → stop: "No active task. Run `/task:new <id>` first." Let `$T` = `<tasks_dir>/$TASK`.
    - `$REPO` = content of `$T/.repo`. If missing → infer it from the paths in `$T/3_plan.md` (their first segment that is a directory in `$WS` containing `.git`), ask the user once to confirm, then write `$T/.repo`. If nothing can be inferred → `repos.default`.
    - `$TYPE` = content of `$T/.type`, default `code`.
-4. **Language.** Write messages and generated files in `language` (headings translated). Keep `## [Cx]` / `## [Qx]` headings and the field labels `Status`, `File`, `Deps`, `Verify`, `Security`, `Result` in English so other skills can parse them.
+4. **Language.** Write messages and generated files in `language` (headings translated). Keep `## [Cx]` / `## [Qx]` headings and the field labels `Status`, `File`, `Deps`, `Verify`, `Security`, `Smoke`, `Result` in English so other skills can parse them.
 
 ## Placeholders
 A file is a placeholder if it contains `<!-- task:placeholder` (legacy: `> Chưa có`, `<!-- Dán nội dung`).
