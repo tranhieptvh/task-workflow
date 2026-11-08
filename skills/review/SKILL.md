@@ -42,6 +42,7 @@ Run these checks; each produces findings for 4_review.md.
 Review inline (or one general-purpose agent when there are more than 8 items) — evidence first:
 - Every done `[Qx]` has a `Result` and its evidence file exists in `$T/evidence/` (a sealed result counts as evidence of existence only).
 - Every hypothesis of the spec is confirmed, rejected or explicitly inconclusive; every spec question has an answer or is marked open.
+- Every cell of the spec's Expected deliverable table (if any) can be filled from a done `[Qx]` Result, with a value allowed by the spec; a cell without a source → blocker ("<row> × <column> has no evidence").
 - Conclusions follow from the evidence: flag claims without evidence, results that contradict each other, and places where a result is an inference.
 - Commands refused by the gate: is the conclusion still valid without them?
 - `$GATE scan $T/evidence` → any match outside `.sealed` is a blocker ("evidence contains secret-like data").

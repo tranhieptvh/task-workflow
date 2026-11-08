@@ -523,6 +523,18 @@ hooks/hooks.json         ← đăng ký gate, chạy mọi lúc
 - **Sửa:** bỏ global option của git (`-C`, `-c`, `--git-dir`, `--work-tree`, `--no-pager`…) trước khi so rule; `grep`, `cat-file -p` vào scan-required, `grep -c/-l/-L/-q` coi là chỉ in tên/số đếm; xét names-only theo từng lệnh (một lệnh `--stat` không gỡ được lệnh in nội dung khác); `ls-tree`, `grep` được allow khi read-only (nội dung vẫn phải qua scan-run); ghi file bảo vệ xét thêm path tương đối theo từng `cd` và script đọc từ stdin.
 - **Test:** 30/30 (thêm 3 test).
 
+### E4. Spec điều tra chốt `Expected deliverable` — `xong` (2026-11-08, v0.4.0)
+- **Vấn đề:** ticket thường yêu cầu sẵn format (bảng env × 影響あり/なし theo ticket cha) nhưng spec không ghi lại → plan không biết cần thu số liệu nào, report viết lại nhiều bản (vd result v1–v4).
+- **Giải pháp:** scout tìm format trong ticket/ticket cha (trích dòng nguồn); spec điều tra có `## Expected deliverable` (output, template, bảng hàng × cột × giá trị ô, nguồn; không có thì đề xuất và ghi "proposed"). Plan review kiểm mỗi ô có [Qx] tạo ra giá trị; `/task:review` 2b: ô không có căn cứ = blocker.
+
+### E5. Draft check trong `/task:report` — `xong` (2026-11-08, v0.4.0)
+- **Vấn đề:** `/task:report` chỉ quét secret và kiểm parity khi dịch; không ai kiểm nháp có phản ánh Fix của review, có truy được về [Qx], có đúng format và rule văn phong không → user phải yêu cầu double check.
+- **Giải pháp:** bước 4: agent Opus độc lập kiểm 4 điểm (fix của review, truy vết, Expected deliverable, rule văn phong trong knowledge), gắn `auto`/`ask` như plan review; main session áp `auto` vào nháp 1 vòng, ghi `## Draft check` vào cuối `5_report.md` (không vào nháp), quét secret lại. `--no-check` để bỏ qua.
+
+### E6. Template theo loại ticket, rule văn phong qua knowledge — `xong` (2026-11-08, v0.4.0)
+- `output.templates` chọn theo loại task (code/investigate) nên không dùng được cho loại ticket (vd security check). Spec chọn template trong `Expected deliverable → Template`; `output.templates` và template mặc định là fallback. Report cũng được tạo khi spec liệt kê report.
+- Rule văn phong của dự án (scope, 未確認, phân vai, xưng hô…) đặt ở một file trong `knowledge` — sub-agent không load memory của user nên đây là đường duy nhất để writer và draft check đọc được. Không cần key config mới.
+
 ---
 
 ## Thứ tự implement

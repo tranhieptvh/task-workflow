@@ -23,6 +23,7 @@ Return your findings as your final message (no file writes), in <language>.
 4. Grep/Glob under `$REPO/<each search_path>`; read only the relevant parts (offset/limit)
 5. <code> Identify the cause chain if it is a bug.
    <investigate> List what is already known from code, what must be checked in which data source (code, logs, database, cloud resources) and in which environment/profile.
+   <investigate> Find the deliverable the ticket expects: format named in the description or comments (table, sheet, comment, report), columns and judgement values (e.g. affected / not affected / not confirmed per environment), language, where it is posted, and any format reused from a parent or related ticket. Quote the source line. If nothing is stated, say so.
 6. <if integrations.docs.context7 is true and context7 tools exist> Look up the APIs of the libraries involved, for the versions in the repo's package manifest.
 
 Sections (headings translated):
@@ -30,6 +31,7 @@ Sections (headings translated):
 ## Related files         (- `path` — role)
 ## Current behaviour     (code: current logic / cause chain; investigate: known facts)
 ## Open points           (investigate: what needs data from outside the code, with source and environment)
+## Expected deliverable  (investigate: format found in step 5, with its source; or "not stated")
 ## Technical constraints (project patterns from the knowledge files)
 ```
 
@@ -62,6 +64,11 @@ For `investigate`:
 ## Conclusion criteria — when the answer is considered established; what remains "inconclusive"
 ## Constraints        — read-only; environments/profiles allowed; data that must not be exported
 ## Risks              — e.g. production load, personal data in results
+## Expected deliverable — what will be handed over, decided now so the plan collects exactly that data:
+   - Output: comment / report / sheet …, language, where it is posted
+   - Template: the names of the deliverable templates to use, e.g. `comment.security`, `report.security` (from `.claude/task-templates/` or the plugin; omit for the defaults)
+   - Table (if any): rows (e.g. environments) × columns, and the allowed values of each cell (e.g. 影響あり / 影響なし / 未確認)
+   - Source: the ticket line or parent ticket the format comes from; if the ticket states nothing, propose a format and mark it "proposed"
 ```
 Then delete `$T/.scout.md`.
 

@@ -83,7 +83,7 @@ Review the plan of task $TASK before it is implemented, in <language>. Return th
 <security paragraph from common.md>
 Read the knowledge files: <knowledge>; then $T/1_requirements.md, $T/2_spec.md, $T/3_plan.md. Read code (Grep/Read) wherever you need to check a claim of the plan.
 Check:
-1. Coverage — <investigate> every spec question and hypothesis has at least one [Qx]; <code> every part of the Proposed solution and Scope has a [Cx]. Every environment, region, profile, branch and repo in the spec's scope is covered. Name what is missing.
+1. Coverage — <investigate> every spec question and hypothesis has at least one [Qx]; <code> every part of the Proposed solution and Scope has a [Cx]. Every environment, region, profile, branch and repo in the spec's scope is covered. <investigate> Every cell of the spec's Expected deliverable table has a [Qx] that produces its value. Name what is missing.
 2. <investigate> Each command returns what its Expect lines rely on: glob/pathspec matching, sort order, pagination or truncation, --region/--profile, shell quoting, --query fields, data volume (will it finish?). Expect if true / if false really separate the hypothesis; name items whose result can only be an inference.
    <code> Before matches the current file (line and content); After implements the spec; callers and imports affected by the change are covered (Grep them); Deps are right; the After code respects the checklists <checklists matching each File>; Verify really proves the item.
 3. Scope — items outside the spec; write/deploy commands in an investigation.

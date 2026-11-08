@@ -8,7 +8,7 @@ Code tasks and investigation tasks, from ticket to deliverable, with a **securit
 /task:new <ticket> [repo] [--type code|investigate] [--from <task>] [--refresh]
    ▼   fetches description + all comments + attachments from the ticket system (read-only)
 /task:spec        code: problem → solution          investigate: questions → hypotheses → criteria
-   ▼
+   ▼              investigate: Expected deliverable (format, table rows × columns, cell values, template) fixed up front
 /task:plan        code: [Cx] before/after + Verify   investigate: [Qx] commands + expected results
    ▼              every command classified by the gate (allow / confirm / deny)
    ▼              plan review: independent Opus agent checks coverage and commands; every auto fix applied once, ask items left to you (--no-review skips)
@@ -18,7 +18,7 @@ Code tasks and investigation tasks, from ticket to deliverable, with a **securit
 /task:review      code: logic, checklists, verify, e2e, secret scan of the diff
    ▼              investigate: is every conclusion backed by evidence?   blockers → back to todo
 /task:report      5_report.md (internal) + drafts in output_<review_language>/ for you to review
-   ▼
+   ▼              draft check: independent Opus agent checks review fixes, traceability, format, writing rules; auto fixes applied (--no-check)
 /task:report --final → output/ (translated, secret-scanned) — you post it; nothing is posted automatically
    └─ investigation done → /task:new <ticket>-fix --from <task> → a code task
 ```
@@ -146,7 +146,7 @@ python3 security/gate.py classify [--readonly] -- '<command>'    allow | confirm
 **Limits.** The gate prevents *accidental* exposure; it is not a sandbox against a model deliberately obfuscating commands. Pattern scanning can miss secrets with unusual formats (e.g. a plain lowercase password), and images (screenshots, attachments) cannot be scanned — blocking secret sources is the primary defence.
 
 ## Templates
-Deliverables are written from templates: `comment.code`, `comment.investigate`, `report`, `chat` (in `templates/`). Override or add your own in `<workspace>/.claude/task-templates/<name>.md`. Drafts are written in `output.review_language` and the ticket's markup; `--final` translates them into `output.languages`, re-scans for secrets and checks that every translation keeps the same facts.
+Deliverables are written from templates: `comment.code`, `comment.investigate`, `report`, `chat` (in `templates/`). Override or add your own in `<workspace>/.claude/task-templates/<name>.md` (e.g. `comment.security`); a task picks them in its spec (`Expected deliverable → Template`), otherwise `output.templates` and the defaults apply. Writing rules for drafts (tone, scope, naming) go in a file listed under `knowledge`, so the spec writer and the draft check both read them. Drafts are written in `output.review_language` and the ticket's markup; `--final` translates them into `output.languages`, re-scans for secrets and checks that every translation keeps the same facts.
 
 ## Contributing
 - The plugin stays project-agnostic: no project paths, framework names or rule IDs in `skills/` — those belong in the project's config and checklists.
