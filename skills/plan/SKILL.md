@@ -87,16 +87,19 @@ Check:
 2. <investigate> Each command returns what its Expect lines rely on: glob/pathspec matching, sort order, pagination or truncation, --region/--profile, shell quoting, --query fields, data volume (will it finish?). Expect if true / if false really separate the hypothesis; name items whose result can only be an inference.
    <code> Before matches the current file (line and content); After implements the spec; callers and imports affected by the change are covered (Grep them); Deps are right; the After code respects the checklists <checklists matching each File>; Verify really proves the item.
 3. Scope — items outside the spec; write/deploy commands in an investigation.
-Report only real problems, no style remarks. Format (bullets, no headings starting with "## [" — other skills parse those):
+Report only real problems, no style remarks. Give each finding a level and an action:
+- level: blocker (the item would produce a wrong or incomplete result) | warning (it works, but the result is weaker)
+- action: auto — the Fix is one concrete change inside the spec's scope that anyone would accept (add a region, field, item or pathspec; fix a command, quoting or query; mark a result as inference) | ask — it needs the user: it changes the scope, reads production or personal data, adds noticeable load or cost, needs permissions, or has several reasonable fixes (list them)
+Format (bullets, no headings starting with "## [" — other skills parse those):
 ## Plan review
-- Result: ✅ ok | ⚠️ N warnings | ❌ N blockers
-- **[Q6]** blocker — <what is wrong, quoting the command/line> · Fix: <concrete change to the plan>
-- **[General]** warning — …
-Blocker = the item would produce a wrong or incomplete result. Warning = it works but the result is weaker.
+- Result: ✅ ok | N blockers, M warnings (K auto, L ask)
+- **[Q6]** blocker · auto — <what is wrong, quoting the command/line> · Fix: <exact change to the plan>
+- **[General]** warning · ask — <what is wrong> · Options: <a> / <b>
 ```
 Then, in the main session:
 - Append the review to the end of `$T/3_plan.md` (replace an existing `## Plan review` section).
-- **One revision round for blockers:** edit the affected items as the Fix says; classify new or changed commands again (step 4); append ` → fixed` or ` → not fixed: <reason>` to each blocker bullet. Do not run the reviewer again — what is left goes to the user.
+- **Apply every `auto` finding in one round**, blockers and warnings alike: edit the items as the Fix says (a new item gets the next free ID); classify new or changed commands again (step 4); append ` → applied` or ` → not applied: <reason>` to the bullet. A Fix that would in fact change the scope or touch production is handled as `ask`; a fixed command classified `deny` is `not applied`.
+- Leave `ask` findings unchanged for the user. Do not run the reviewer again — the smoke run (step 6) checks the changed commands.
 
 ## 6. Smoke run (investigate only, main session)
 Skipped with `--no-smoke` and for `code` tasks. Catches what reading cannot: a pathspec that matches nothing, a quoting error, a query that never finishes. It tests the final commands, so it runs after the plan review.
@@ -117,8 +120,8 @@ Then delete `$T/.smoke/` — implement produces the real evidence.
 
 ## 7. Report
 ```
-✅ $T/3_plan.md created — N items · plan review: X blockers (Y fixed), Z warnings | skipped · smoke: A ok, B fixed, C failing, D skipped | skipped
+✅ $T/3_plan.md created — N items · plan review: A applied, B for you, C not applied | skipped · smoke: A ok, B fixed, C failing, D skipped | skipped
 <investigate> Commands that will ask for confirmation when run (read-only mode): <list with env/profile>
-<not fixed blockers, warnings and failing smoke commands, one line each>
+<ask findings (with their options), not-applied fixes and failing smoke commands, one line each>
 👉 Review the plan, then run /task:implement --all (or /task:implement C1 C2 / Q1 Q2)
 ```
