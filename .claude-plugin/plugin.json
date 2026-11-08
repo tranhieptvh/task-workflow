@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "task",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Spec-driven task workflow (code and investigation tasks): init → new → spec → plan → implement → review → report, with a security gate that keeps secrets out of the model's context",
   "author": {
     "name": "hieptv",

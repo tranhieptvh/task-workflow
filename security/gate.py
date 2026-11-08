@@ -237,23 +237,40 @@ def _cmd_index(seg):
 
 
 def protected_write_targets(segs, cwd):
-    """Paths a command may WRITE: redirect targets, arguments of write commands, paths named inside inline scripts.
+    """Paths a command may WRITE: redirect targets, arguments of write commands, paths named inside inline or stdin
+    scripts (python3 - <<EOF ...). Relative paths resolve against the session cwd and every `cd` target in the command.
     Running a protected script (python3 gate.py ...) is not a write."""
-    targets = []
+    targets, bases, stdin_script = [], [cwd], False
+
+    def add(f):
+        for b in bases:
+            targets.extend(existing_paths(f, b) or [_expand(f, b)])
+
     for seg in segs:
+        ci = _cmd_index(seg)
+        if ci + 1 < len(seg) and seg[ci] == "cd":
+            bases.append(_expand(seg[ci + 1], cwd))
         for i, t in enumerate(seg):
             if t in (">", ">>", ">|", "&>", "&>>") and i + 1 < len(seg):
-                targets.append(_expand(seg[i + 1], cwd))
-        ci = _cmd_index(seg)
+                add(seg[i + 1])
         if ci >= len(seg):
             continue
         name = os.path.basename(seg[ci])
         in_place = name in IN_PLACE_CMDS and any(t.startswith("-i") or t == "--in-place" for t in seg[ci + 1:])
-        if name in WRITE_CMDS or in_place or (name in INLINE_FLAGS and INLINE_FLAGS[name] in seg[ci + 1:]):
-            for t in seg[ci + 1:]:
-                for f in re.split(r"[\s'\"()=,;|&<>`]+", t):
-                    if f and not f.startswith("-"):
-                        targets.extend(existing_paths(f, cwd) or [_expand(f, cwd)])
+        if name in INLINE_FLAGS:
+            args = [t for t in seg[ci + 1:] if t == "-" or not t.startswith("-")]
+            stdin_script = stdin_script or (bool(args) and args[0] in ("-", "<<", "<<-", "<<<", "<")) \
+                or (name in ("bash", "sh", "zsh") and "-s" in seg[ci + 1:])
+        if stdin_script:
+            words = seg  # heredoc body lines arrive as segments of their own
+        elif name in WRITE_CMDS or in_place or (name in INLINE_FLAGS and INLINE_FLAGS[name] in seg[ci + 1:]):
+            words = seg[ci + 1:]
+        else:
+            continue
+        for t in words:
+            for f in re.split(r"[\s'\"()=,;|&<>`]+", t):
+                if f and not f.startswith("-"):
+                    add(f)
     return targets
 
 
@@ -286,6 +303,26 @@ def unwrap_gate(seg):
 
 # ---------------------------------------------------------------- decisions
 
+# git global options sit between "git" and the subcommand (git -C repo show); drop them so rules see "git show"
+_GIT_ARG = r"(?:'[^']*'|\"[^\"]*\"|\S+)"
+GIT_GLOBAL = re.compile(r"\bgit((?:\s+(?:-[Cc]\s+%s|--(?:git-dir|work-tree|namespace)(?:=|\s+)%s|--no-pager|-P|--bare|--no-replace-objects|--literal-pathspecs))+)(?=\s)" % (_GIT_ARG, _GIT_ARG))
+
+
+def norm_git(s):
+    return GIT_GLOBAL.sub("git", s)
+
+
+def _names_only(line):
+    """True if a scan-required command prints only names, stats or counts - no file content."""
+    if re.search(r"\s(?:-p|-u|--patch)\b", line):
+        return False
+    if re.search(r"--(?:stat|name-only|name-status|shortstat|numstat|quiet|exit-code|summary)\b", line):
+        return True
+    # git grep -c / -l / -L / -q: counts or file names only
+    return bool(re.search(r"\bgit\s+grep\b", line)
+                and re.search(r"\s(?:-[a-zA-Z]*[clLq][a-zA-Z]*|--count|--files-with-matches|--files-without-match)\b", line))
+
+
 def check_safe_form(p, cmd, tokens, scanned):
     for rule in p["safe_form"]:
         if not re.search(rule["regex"], cmd):
@@ -299,10 +336,8 @@ def check_safe_form(p, cmd, tokens, scanned):
         elif rid == "aws-ssm-param":
             ok = q is not None and "Value" not in q
         elif rid == "scan-required":
-            # name/stat-only views print no file content
-            names_only = re.search(r"--(?:stat|name-only|name-status|shortstat|numstat|quiet|exit-code|summary)\b", cmd) \
-                and not re.search(r"\s(?:-p|-u|--patch)\b", cmd)
-            ok = scanned or bool(names_only)
+            # judged per command, so one names-only command cannot clear another that prints content
+            ok = scanned or all(_names_only(l) for l in cmd.splitlines() if re.search(rule["regex"], l))
         else:
             ok = False
         if not ok:
@@ -315,7 +350,7 @@ def _glob_rx(g):
 
 
 def classify_readonly(p, seg, task_dir, cwd):
-    s = " ".join(seg)
+    s = norm_git(" ".join(seg))
     # housekeeping inside the task folder (e.g. removing the .readonly marker) is not a state change
     if seg and seg[0] in ("rm", "mv", "rmdir", "mkdir", "touch"):
         args = [t for t in seg[1:] if not t.startswith("-")]
@@ -356,7 +391,7 @@ def check_bash(p, cmd, cwd, ws, readonly_task=None, scanned=False):
             plain.append(seg)
     if not plain:
         return None
-    rest = "\n".join(shlex.join(s) for s in plain)
+    rest = norm_git("\n".join(shlex.join(s) for s in plain))
     tokens = [t for s in plain for t in s]
 
     d = check_safe_form(p, rest, tokens, scanned)

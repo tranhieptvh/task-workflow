@@ -138,6 +138,24 @@ class TestBash(Base):
         self.assertDecision(self.bash("python3 %s scan-run -- 'cat .env'" % GATE), "deny")
         self.assertDecision(self.bash("python3 %s scan-run -- 'printenv'" % GATE), "deny")
 
+    def test_git_content_commands(self):
+        for cmd in ("git -C sub show HEAD", "git -C sub log -p -1", "git --no-pager -C sub show HEAD:app.js",
+                    "git grep -n token HEAD", "git -C sub grep token origin/main", "git cat-file -p HEAD:app.js",
+                    "git -c core.pager=cat show HEAD", "git diff --stat; git show HEAD"):
+            self.assertDecision(self.bash(cmd), "deny")
+        for cmd in ("git -C sub grep -c brotli origin/main", "git grep -l token", "git -C sub grep --count x HEAD",
+                    "git -C sub ls-tree -r --name-only HEAD", "git -C sub show --stat HEAD", "git log --grep=fix --oneline",
+                    "python3 %s scan-run -- 'git -C sub grep -n x HEAD'" % GATE):
+            self.assertDecision(self.bash(cmd), "allow")
+
+    def test_protected_writes_via_cd_and_stdin(self):
+        sec = os.path.dirname(GATE)
+        self.assertDecision(self.bash("cd %s && echo x > gate.py" % sec), "deny")
+        self.assertDecision(self.bash("cd %s && python3 - <<'EOF'\nopen('policy.default.json', 'w')\nEOF" % sec), "deny")
+        self.assertDecision(self.bash("bash -s <<'EOF'\necho x > %s\nEOF" % GATE), "deny")
+        self.assertDecision(self.bash("python3 - <<'EOF'\nprint(1)\nEOF"), "allow")
+        self.assertDecision(self.bash("cd %s && cat gate.py" % sec), "allow")
+
     def test_protected_paths(self):
         with open(os.path.join(self.ws, ".claude", "settings.json"), "w") as f:
             f.write("{}")
@@ -185,6 +203,11 @@ class TestReadonly(Base):
             d = self.bash(cmd, ro=self.task)
             expected = "ask" if "admin-get-user" in cmd else "allow"
             self.assertDecision(d, expected)
+
+    def test_git_global_options_in_readonly(self):
+        self.assertDecision(self.bash("git -C sub push", ro=self.task), "deny")
+        for cmd in ("git -C sub ls-tree -r --name-only origin/main", "git -C sub grep -c x origin/main"):
+            self.assertDecision(self.bash(cmd, ro=self.task), "allow")
 
     def test_gate_wrapper_in_readonly(self):
         ev = os.path.join(self.task, "evidence", "Q1.txt")

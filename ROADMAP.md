@@ -515,7 +515,12 @@ hooks/hooks.json         ← đăng ký gate, chạy mọi lúc
 ### E2. Chạy thử lệnh trước khi implement (smoke) — `xong` (2026-11-08)
 - **Vấn đề:** lỗi lệnh chỉ lộ ra khi chạy (pathspec không khớp, quote, query chạy không xong) thì E1 không bắt được.
 - **Giải pháp:** bước 6 của `/task:plan`, chỉ cho task điều tra, sau plan review: main session chạy một lần mỗi lệnh `allow` (thay placeholder bằng 1 giá trị cụ thể) qua `scan-run`, timeout 90 s, ghi `- **Smoke:**` vào item. `empty` / lỗi cú pháp / `timeout` = blocker, sửa 1 vòng; AccessDenied không phải lỗi plan (ghi 未確認). Xoá `.smoke/` khi xong.
-- **Phạm vi lệnh:** mặc định chỉ `allow`. `git ls-tree` / `git grep` trên ref là `confirm` → muốn bắt lỗi kiểu Q6 phải dùng `--smoke-all` (gate hỏi từng lệnh). `--no-smoke` để bỏ qua. Task code không chạy smoke (Verify phụ thuộc code chưa sửa).
+- **Phạm vi lệnh:** mặc định chỉ `allow`. từ v0.3.1 `git ls-tree` / `git grep` trên ref là `allow` (E3) nên lỗi kiểu Q6 được smoke mặc định bắt; `--smoke-all` cho lệnh `confirm` còn lại (gate hỏi từng lệnh). `--no-smoke` để bỏ qua. Task code không chạy smoke (Verify phụ thuộc code chưa sửa).
+
+### E3. Sửa gate: git global option, `git grep`, ghi file bảo vệ — `xong` (2026-11-08, v0.3.1)
+- **Lỗ hổng:** `git -C <dir> show` / `log -p` lọt rule scan-required (regex khớp `git\s+show`), và lọt cả deny read-only (`git -C repo push` chỉ bị hỏi). `git grep` (in nội dung) và `git cat-file -p` không bắt scan. Ghi file bảo vệ qua `cd <dir> && …` hoặc `python3 - <<EOF` không bị phát hiện.
+- **Sửa:** bỏ global option của git (`-C`, `-c`, `--git-dir`, `--work-tree`, `--no-pager`…) trước khi so rule; `grep`, `cat-file -p` vào scan-required, `grep -c/-l/-L/-q` coi là chỉ in tên/số đếm; xét names-only theo từng lệnh (một lệnh `--stat` không gỡ được lệnh in nội dung khác); `ls-tree`, `grep` được allow khi read-only (nội dung vẫn phải qua scan-run); ghi file bảo vệ xét thêm path tương đối theo từng `cd` và script đọc từ stdin.
+- **Test:** 30/30 (thêm 3 test).
 
 ---
 
