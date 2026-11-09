@@ -535,6 +535,11 @@ hooks/hooks.json         ← đăng ký gate, chạy mọi lúc
 - `output.templates` chọn theo loại task (code/investigate) nên không dùng được cho loại ticket (vd security check). Spec chọn template trong `Expected deliverable → Template`; `output.templates` và template mặc định là fallback. Report cũng được tạo khi spec liệt kê report.
 - Rule văn phong của dự án (scope, 未確認, phân vai, xưng hô…) đặt ở một file trong `knowledge` — sub-agent không load memory của user nên đây là đường duy nhất để writer và draft check đọc được. Không cần key config mới.
 
+### E7. Dự án nới lệnh bị deny khi điều tra (`commands.override`) — `xong` (2026-11-10, v0.4.1)
+- **Vấn đề:** NODE-1023 cần `aws ssm send-command` khi điều tra, nhưng regex deny read-only mặc định bắt `ssm send-*` và `task-security.json` chỉ được siết thêm → chỉ còn cách sửa tay `policy.default.json` (áp cho mọi workspace, phải nhớ revert).
+- **Giải pháp:** `commands.override` (glob) trong `.claude/task-security.json`: lệnh khớp deny read-only **mặc định** được hạ xuống **confirm** (rule `readonly-override`, lần nào chạy cũng hỏi user, `-p` mode = từ chối). Không bao giờ lên allow. Không gỡ được: `deny` của chính dự án, redirect ra ngoài task, `always_deny`, safe form, secret path, protected path. Vì trần là confirm nên file trong repo không tự mở khoá im lặng được — không cần lưu ngoài repo.
+- **Test:** 31/31 (thêm `test_project_override`).
+
 ---
 
 ## Thứ tự implement

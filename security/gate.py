@@ -73,12 +73,13 @@ def active_task(ws):
 def load_policy(ws):
     with open(os.path.join(PLUGIN_ROOT, "security", "policy.default.json"), encoding="utf-8") as f:
         p = json.load(f)
-    p["project_cmds"] = {"allow": [], "confirm": [], "deny": []}
+    p["project_cmds"] = {"allow": [], "confirm": [], "deny": [], "override": []}
     proj = os.path.join(ws, ".claude", "task-security.json")
     if os.path.isfile(proj):
         with open(proj, encoding="utf-8") as f:
             o = json.load(f)  # malformed project policy -> exception -> fail-closed
-        # Projects may only ADD restrictions.
+        # Projects may only ADD restrictions; the one exception, commands.override, lowers a read-only deny
+        # to a per-run confirmation (never to allow), so a repo cannot silently unlock anything.
         p["secret_paths"] += [str(x) for x in o.get("secret_paths", [])]
         for x in o.get("secret_patterns", []):
             entry = x if isinstance(x, dict) else {"regex": str(x)}
@@ -356,13 +357,20 @@ def classify_readonly(p, seg, task_dir, cwd):
         args = [t for t in seg[1:] if not t.startswith("-")]
         if args and all(_under(_expand(t, cwd), task_dir) for t in args):
             return "allow"
-    if any(re.search(r, s) for r in p["readonly"]["deny"]) or any(_glob_rx(g).match(s) for g in p["project_cmds"]["deny"]):
+    if any(_glob_rx(g).match(s) for g in p["project_cmds"]["deny"]):
         return "deny"
+    overridden = False
+    if any(re.search(r, s) for r in p["readonly"]["deny"]):
+        if not any(_glob_rx(g).match(s) for g in p["project_cmds"]["override"]):
+            return "deny"
+        overridden = True
     for i, t in enumerate(seg):
         if t in (">", ">>", ">|", "&>", "&>>") and i + 1 < len(seg):
             target = seg[i + 1]
             if target != "/dev/null" and not _under(_expand(target, cwd), task_dir):
                 return "deny"
+    if overridden:
+        return "override"
     if any(re.search(r, s) for r in p["readonly"]["confirm"]) or any(_glob_rx(g).match(s) for g in p["project_cmds"]["confirm"]):
         return "ask"
     if any(re.search(r, s) for r in p["readonly"]["allow"]) or any(_glob_rx(g).match(s) for g in p["project_cmds"]["allow"]):
@@ -411,6 +419,8 @@ def check_bash(p, cmd, cwd, ws, readonly_task=None, scanned=False):
         decisions = [classify_readonly(p, s, readonly_task, cwd) for s in plain]
         if "deny" in decisions:
             return ("deny", "readonly", "read-only investigation: this command may change state. If a change is really needed, create a separate task (/task:new <id>-fix --from <task>)")
+        if "override" in decisions:
+            return ("ask", "readonly-override", "read-only investigation: this command may change state; it asks instead of being refused only because of commands.override in .claude/task-security.json. Confirm the command, env/profile and reason")
         if "ask" in decisions:
             return ("ask", "readonly-confirm", "read-only investigation: this command reads business/personal data or is not classified. Confirm the command, env/profile and reason")
     return None

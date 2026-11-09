@@ -180,7 +180,8 @@ class TestReadonly(Base):
             f.write("T-1")
         open(os.path.join(self.task, ".readonly"), "w").close()
         with open(os.path.join(self.ws, ".claude", "task-security.json"), "w") as f:
-            json.dump({"commands": {"allow": ["amplify status*"], "confirm": ["amplify env checkout *"], "deny": ["make deploy*"]},
+            json.dump({"commands": {"allow": ["amplify status*"], "confirm": ["amplify env checkout *"], "deny": ["make deploy*"],
+                                    "override": ["aws ssm send-command *", "make deploy*", "aws secretsmanager get-secret-value*"]},
                        "secret_paths": ["e2e/.auth/*"]}, f)
         self.p = gate.load_policy(self.ws)
 
@@ -195,6 +196,15 @@ class TestReadonly(Base):
         for cmd in ("aws dynamodb scan --table-name t", "curl https://example.com", "node script.js",
                     "amplify env checkout dev", "terraform plan", "aws s3 cp s3://b/k ."):
             self.assertDecision(self.bash(cmd, ro=self.task), "ask")
+
+    def test_project_override(self):
+        d = self.bash("aws ssm send-command --instance-ids i-x --document-name AWS-RunShellScript", ro=self.task)
+        self.assertEqual(d[:2], ("ask", "readonly-override"))
+        # never allow, never past redirects, project deny or always_deny
+        self.assertDecision(self.bash("aws ssm send-command --instance-ids i-x > out.txt", ro=self.task), "deny")
+        self.assertDecision(self.bash("make deploy prod", ro=self.task), "deny")
+        self.assertDecision(self.bash("aws secretsmanager get-secret-value --secret-id s", ro=self.task), "deny")
+        self.assertDecision(self.bash("aws ssm send-command --instance-ids i-x && git push", ro=self.task), "deny")
 
     def test_reads_allowed(self):
         for cmd in ("ls", "git log --oneline", "aws lambda list-functions --profile dev", "aws sts get-caller-identity --profile dev",

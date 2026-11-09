@@ -125,15 +125,16 @@ Secrets must never reach the model (everything in its context is sent to the clo
 - **Emergency switch:** start Claude Code with `TASK_SECURITY_GATE=off`. Only you can do this; commands mentioning the variable are refused.
 - Events (no values) are logged to `tasks/<id>/.security.log`, or `~/.claude/task-security/security.log` when no task is active.
 
-Project additions go to `.claude/task-security.json` — they can only **tighten** the default policy:
+Project additions go to `.claude/task-security.json` — they can only **tighten** the default policy, with one bounded exception (`override`):
 ```json
 {
   "secret_paths": ["e2e/.auth/*"],
   "secret_patterns": [{"id": "myapp-key", "regex": "MYAPP_[A-Z]+_KEY=\\S+"}],
-  "commands": {"allow": ["amplify status"], "confirm": ["amplify pull *"], "deny": ["amplify push *"]}
+  "commands": {"allow": ["amplify status"], "confirm": ["amplify pull *"], "deny": ["amplify push *"],
+               "override": ["aws ssm send-command *"]}
 }
 ```
-`commands` apply during read-only investigations; `allow` only covers commands the default policy does not classify.
+`commands` apply during read-only investigations; `allow` only covers commands the default policy does not classify. `override` lowers a command the default read-only policy refuses to **confirm** — you are asked on every run, it never becomes allow. It cannot lift the project's own `deny`, redirects outside the task folder, secret-printing commands, safe forms, secret or protected paths.
 
 Command-line helpers:
 ```
